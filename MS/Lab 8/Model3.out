@@ -1,0 +1,80 @@
+SIMAN Run Controller.
+
+15.0 Godziny>
+                                      ARENA Simulation Results
+                                 Andrii Mieshkov - License: STUDENT
+
+                                  Podsumowanie replikacji 1 z 1
+
+Projekt: Unnamed Project                                             Data uruchomienia : 1/ 8/2025
+Analiza: Anatoliy Khramchenko                                        Data rewizji modelu: 1/ 8/2025
+
+Replikacja zakonczyla sie o czasie      : 15.0 Godziny 
+Bazowe jednostki czasu: Godziny
+
+                                           TALLY VARIABLES
+
+Identyfikator                             Srednia polowa szerokosci Min        Max    Obserwacje
+___________________________________________________________________________________________________
+
+Entity 1.VATime                             3.0089     (Insuf)    .01809     9.9372         36    
+Entity 1.NVATime                            .00000     (Insuf)    .00000     .00000         36    
+Entity 1.WaitTime                           .00000     (Insuf)    .00000     .00000         36    
+Entity 1.TranTime                           .00000     (Insuf)    .00000     .00000         36    
+Entity 1.OtherTime                          .00000     (Insuf)    .00000     .00000         36    
+Entity 1.TotalTime                          3.0089     (Insuf)    .01809     9.9372         36    
+Process 22.Queue.WaitingTime                .00000     (Insuf)    .00000     .00000          6    
+Process 2.Queue.WaitingTime                 .00000     (Insuf)    .00000     .00000         11    
+Process 19.Queue.WaitingTime                .00000     (Insuf)    .00000     .00000          7    
+Process 16.Queue.WaitingTime                .00000     (Insuf)    .00000     .00000          7    
+Process 13.Queue.WaitingTime                .00000     (Insuf)    .00000     .00000          9    
+
+                                     DISCRETE-CHANGE VARIABLES
+
+Identyfikator                             Srednia polowa szerokosci Min        Max    Wartosc koncowa
+___________________________________________________________________________________________________
+
+Entity 1.WIP                                15.354     (Insuf)    .00000     27.000     24.000    
+Resource 5.NumberBusy                       .51190     (Insuf)    .00000     1.0000     1.0000    
+Resource 5.NumberScheduled                  1.0000     (Insuf)    1.0000     1.0000     1.0000    
+Resource 5.Utilization                      .51190     (Insuf)    .00000     1.0000     1.0000    
+Resource 4.NumberBusy                       .55785     (Insuf)    .00000     1.0000     1.0000    
+Resource 4.NumberScheduled                  1.0000     (Insuf)    1.0000     1.0000     1.0000    
+Resource 4.Utilization                      .55785     (Insuf)    .00000     1.0000     1.0000    
+Resource 3.NumberBusy                       .64586     (Insuf)    .00000     1.0000     1.0000    
+Resource 3.NumberScheduled                  1.0000     (Insuf)    1.0000     1.0000     1.0000    
+Resource 3.Utilization                      .64586     (Insuf)    .00000     1.0000     1.0000    
+Resource 2.NumberBusy                       .56613     (Insuf)    .00000     1.0000     .00000    
+Resource 2.NumberScheduled                  1.0000     (Insuf)    1.0000     1.0000     1.0000    
+Resource 2.Utilization                      .56613     (Insuf)    .00000     1.0000     .00000    
+Resource 1.NumberBusy                       .53966     (Insuf)    .00000     1.0000     1.0000    
+Resource 1.NumberScheduled                  1.0000     (Insuf)    1.0000     1.0000     1.0000    
+Resource 1.Utilization                      .53966     (Insuf)    .00000     1.0000     1.0000    
+Process 22.Queue.NumberInQueue              .00000     (Insuf)    .00000     .00000     .00000    
+Process 2.Queue.NumberInQueue               .00000     (Insuf)    .00000     .00000     .00000    
+Process 19.Queue.NumberInQueue              .00000     (Insuf)    .00000     .00000     .00000    
+Process 16.Queue.NumberInQueue              .00000     (Insuf)    .00000     .00000     .00000    
+Process 13.Queue.NumberInQueue              .00000     (Insuf)    .00000     .00000     .00000    
+
+                                             OUTPUTS
+
+Identifier                                   Value
+_____________________________________________________________
+
+Entity 1.NumberIn                           60.000    
+Entity 1.NumberOut                          36.000    
+Resource 5.NumberSeized                     6.0000    
+Resource 5.ScheduledUtilization             .51190    
+Resource 4.NumberSeized                     7.0000    
+Resource 4.ScheduledUtilization             .55785    
+Resource 3.NumberSeized                     7.0000    
+Resource 3.ScheduledUtilization             .64586    
+Resource 2.NumberSeized                     9.0000    
+Resource 2.ScheduledUtilization             .56613    
+Resource 1.NumberSeized                     11.000    
+Resource 1.ScheduledUtilization             .53966    
+System.NumberOut                            36.000    
+
+
+Czas przebiegu symulacji: 0.15 minut.
+Symulacja zakonczona.

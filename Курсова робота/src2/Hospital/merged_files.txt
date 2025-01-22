@@ -1,0 +1,843 @@
+
+--- Element.java ---
+import java.util.ArrayList;
+import java.util.List;
+
+public class Element {
+    private String name;
+    private int id;
+    private int nextId = 0;
+    private List<Device> devices;
+    private Transfer transfer;
+    private String[][] blockers = new String[0][0];
+    private String[][] changes = new String[0][0];
+    private String[][] conditions = new String[0][0];
+    int maxQueue = 0;
+
+    private double tNext;
+    private double tCurr;
+    private int quantity;
+
+    double deltaNow = 0;
+    List<Double> type1 = new ArrayList<>();
+    List<Double> type2 = new ArrayList<>();
+    List<Double> type3 = new ArrayList<>();
+    List<Double> entryTimes = new ArrayList<>();
+    
+
+    public Element(String nameOfElement, List<Double> delays, List<String> distributions, int numberOfDevices){
+        this.name = nameOfElement;
+        this.tNext = 0.0;
+        this.tCurr = tNext;
+        this.devices = new ArrayList<>();
+        for (int i = 0; i < numberOfDevices; i++) {
+            this.devices.add(new Device(delays, distributions));
+        }
+        this.id = nextId;
+        nextId++;
+    }
+
+    public void inAct(Patient patient){
+    }
+    public void outAct(){
+        quantity++;
+    }
+
+    public void setDelay(int index, double delayDev){
+        Device device = devices.get(index);
+        device.setDelayDev(delayDev);
+    }
+
+    public void printResult(){
+        System.out.println("\n" + this.name+ "\nquantity = "+ quantity);
+        if(type1.size() > 0){
+            double average = average(type1);
+            double variance = variance(average, type1);
+            double stdDev = Math.sqrt(variance);
+            System.out.println("\nType 1: Average Duration = " + average + ", Standard Deviation = " + stdDev);
+        } 
+        if(type2.size() > 0){
+            double average = average(type2);
+            double variance = variance(average, type2);
+            double stdDev = Math.sqrt(variance);
+            System.out.println("\nType 2: Average Duration = " + average + ", Standard Deviation = " + stdDev);
+        } 
+        if(type3.size() > 0){
+            double average = average(type3);
+            double variance = variance(average, type3);
+            double stdDev = Math.sqrt(variance);
+            System.out.println("\nType 3: Average Duration = " + average + ", Standard Deviation = " + stdDev);
+        } 
+
+        if(entryTimes.size()>0){
+            List<Double> intervals = new ArrayList<>();
+            for (int i = 1; i < entryTimes.size(); i++) {
+                double interval = entryTimes.get(i) - entryTimes.get(i - 1);
+                intervals.add(interval);
+            }
+
+            double average = average(intervals);
+            double variance = variance(average, intervals);
+            double stdDev = Math.sqrt(variance);
+            System.out.println("\nAverage Interval = " + average + ", Standard Deviation = " + stdDev);
+        }
+    }
+    public double getTcurr() {
+        return tCurr;
+    }
+    public String getName() {
+        return name;
+    }
+    public void setName(String name) {
+        this.name = name;
+    }
+    public int getId() {
+        return id;
+    }
+    public void setId(int id) {
+        this.id = id;
+    }
+    public void setTcurr(double tCurr) {
+        this.tCurr = tCurr;
+    }
+    public void doStatistics(double delta){
+        this.deltaNow = delta;
+    }
+
+    public List<Device> getDevices(){
+        return devices;
+    }
+
+    public void setTransfer(List<Process> nextElements){
+        this.transfer = new Transfer(nextElements);
+    }
+    public Transfer getTransfer() {
+        return transfer;
+    }
+    public void setBlockers(String[][] blockers){
+        this.blockers = blockers;
+    }
+    public String[][] getBlockers() {
+        return blockers;
+    }
+    public void setChanges(String[][] changes){
+        this.changes = changes;
+    }
+    public String[][] getChanges() {
+        return changes;
+    }
+    public void setConditions(String[][] conditions){
+        this.conditions = conditions;
+    }
+    public String[][] getConditions() {
+        return conditions;
+    }
+    public void setTnext(double tNext) {
+        this.tNext = tNext;
+    }
+    public double getTnext() {    
+        return this.tNext;
+    }
+
+    public void updateTnext(){
+        this.tNext = devices.stream()
+                            .mapToDouble(Device::getTNext) 
+                            .min()                       
+                            .orElse(this.tNext);
+    }
+
+    public double average(List<Double> list){
+        return list.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+    }
+
+    public double variance(double average, List<Double> list){
+        return list.stream()
+                    .mapToDouble(x -> Math.pow(x - average, 2))
+                    .average()
+                    .orElse(0);
+    }
+
+}
+
+
+--- FunRand.java ---
+public class FunRand {
+    public static double Exp(double timeMean) {
+        double a = 0;
+
+        while (a == 0) {
+            a = Math.random();
+        }
+
+        a = -timeMean * Math.log(a);
+
+        return a;
+    }
+
+    public static double Unif(double timeMin, double timeMax) {
+        double a = 0;
+
+        while (a == 0) {
+            a = Math.random();
+        }
+
+        a = timeMin + a * (timeMax - timeMin);
+
+        return a;
+    }
+
+    public static double Erl(double timeMean, double k) {
+        double a = 0;
+
+        for (int i = 0; i < k; i++) {
+            double u = 0;
+            while (u == 0) {
+                u = Math.random();
+            }
+            
+            a += Math.log(u);;
+        }
+
+        a = -1 / timeMean * a;
+        
+        return a;
+    }
+}
+
+
+--- Process.java ---
+import java.util.ArrayList;
+import java.util.List;
+
+public class Process extends Element {
+    
+    private QueueP queue = new QueueP();
+
+    public Process(String nameOfElement, List<Double> delays, List<String> distributions, int numberOfDevices) {
+        super(nameOfElement, delays, distributions, numberOfDevices);
+    }
+
+    @Override
+    public void inAct(Patient patient) {
+        String name = super.getName();
+        int type = patient.getType();
+        if(name == "Registration in the laboratory") {
+            entryTimes.add(super.getTcurr());
+        }
+        for (Device device : super.getDevices()) {
+            device.setTcurr(super.getTcurr());
+            if (device.getState() == 0) {
+                int delayNumber = device.getDelayNumber();
+                if(delayNumber == 3){
+                    device.inAct(patient, type-1);
+                } else {
+                    device.inAct(patient, 0);
+                }
+                super.updateTnext();
+                return;
+            }
+        }
+
+        queue.add(patient);
+        super.maxQueue = queue.length()>super.maxQueue ? queue.length() : super.maxQueue;
+    }
+
+    @Override
+    public void outAct( ) {
+        List<Patient> outTasks = new ArrayList<>();
+        for (Device device : super.getDevices()) {
+            device.setTcurr(super.getTcurr());
+            if (device.getTNext() == super.getTcurr()) {
+                Patient task = device.outAct();
+                if(task instanceof Patient && task != null) {
+                    outTasks.add(task);
+                } 
+            }
+        }
+        if (outTasks.size() > 0){
+            for (Patient task : outTasks) {
+                super.outAct();
+                Transfer transfer = super.getTransfer();
+                if(transfer != null){
+                    String next = transfer.goNext(this, super.getTcurr(), task);
+                    if((next != "blocked") && queue.length() > 0){
+                        Patient patient = this.queue.remove();
+                        int type = patient.getType();
+                        for (Device device : super.getDevices()) {
+                            device.setTcurr(super.getTcurr());
+                            if (device.getState() == 0) {
+                                int delayNumber = device.getDelayNumber();
+                                if(delayNumber == 3){
+                                    device.inAct(patient, type-1);
+                                } else {
+                                    device.inAct(patient, 0);
+                                }
+                                super.updateTnext();
+                                return;
+                            }
+                        }
+                    }
+                    if(next == null){
+                        this.addDuration(task);
+                    }
+                }
+                if(transfer == null){
+                    this.addDuration(task);
+                }
+            }
+        }
+        for (Device device : super.getDevices()) {
+            if (device.getState() == 0) {
+                device.setTNext(Double.MAX_VALUE);
+            }
+        }
+        super.updateTnext();
+    }
+
+    @Override
+    public void doStatistics(double delta){
+    }
+
+    public void addDuration(Patient patient) {
+        int type = patient.getType();
+        int flag = patient.getFlag();
+        patient.setExit(super.getTcurr());
+
+        if (type == 1) {
+            if(flag == 0) {
+                super.type1.add(patient.getDuration());
+            } else {
+                super.type2.add(patient.getDuration());
+            }
+        } else if (type == 3) {
+            super.type3.add(patient.getDuration());
+        }
+    }
+
+
+}
+
+
+--- Create.java ---
+import java.util.List;
+
+public class Create extends Element{
+    public Create(String nameOfElement, List<Double> delays, List<String> distributions, int numberOfDevices) {
+        super(nameOfElement, delays, distributions, numberOfDevices);
+        for (Device device : super.getDevices()) {
+            device.setTNext(0);
+        }
+    }
+
+    @Override
+    public void outAct( ) {
+        super.outAct();
+        Time time = new Time(super.getTcurr());
+        double hours = time.getHours();
+        double p1,p2,p3;
+        if(hours >= 7 && hours <= 10 ){
+            p1 = 0.9;
+            p2 = 0.1;
+            p3 = 0;
+        } else {
+            p1 = 0.5;
+            p2 = 0.1;
+            p3 = 0.4;
+        }
+
+        Patient newPatient = generatePatient(p1, p2, p3);
+        newPatient.setArrival(super.getTcurr());
+        double delay = 0;
+        for (Device device : super.getDevices()) {
+            device.setPatient(newPatient);
+            delay = device.getDelayAverage(0);
+        }
+        Transfer transfer = super.getTransfer();
+        String next = transfer.goNext(this, super.getTcurr(), newPatient);
+
+        if((next == "blocked")){
+            super.setTnext(super.getTcurr() + time.getNightDelay());
+        } else {
+            super.setTnext(super.getTcurr() + delay);
+        }
+
+    }
+
+    public Patient generatePatient(double p1, double p2, double p3) {
+        int type = 0;
+        double rand = Math.random();
+
+        if (rand < p1) {
+            type = 1; 
+        } else if (rand < p1 + p2) {
+            type = 2; 
+        } else {
+            type = 3;
+        }
+
+        Patient newPatient = new Patient(type, super.getTcurr());
+
+        return newPatient;
+    }
+}
+
+
+--- Time.java ---
+public class Time {
+    private double minutesOfDay;
+    private double hours, minutes, seconds;
+
+    public Time(double minutes) {
+        minutesOfDay = minutes;
+    }
+
+    public String toHHMMSS() {
+        hours = Math.floor((minutesOfDay / 60) % 24);
+        minutes = Math.floor(minutesOfDay % 60);
+        seconds = ((minutesOfDay % 60) - minutes) * 60 / 100;
+        return String.format("%02.0f:%02.0f:%02.0f", hours, minutes, seconds);
+    }
+
+    public void setMinutes(double minutes) {
+        minutesOfDay = minutes;
+    }
+
+    public double getHours() {
+        return (minutesOfDay / 60) % 24;
+    }
+    public double getNightDelay() {
+        double minutesUntilSeven = 0;
+
+        if (hours < 7) {
+            minutesUntilSeven = (7 * 60) - (hours * 60 + minutes);
+        } else {
+            minutesUntilSeven = (24 * 60) - (hours * 60 + minutes) + (7 * 60);
+        }
+
+        return minutesUntilSeven; 
+    }
+    
+}
+
+
+--- Device.java ---
+import java.util.List;
+
+public class Device {
+    private List<Double> delaysAverage;
+    private List<String> distributions;
+    private double delayDev;
+
+    private double tNext = Double.MAX_VALUE;
+    private double tCurr = 0;
+
+    private int state;
+    private Patient patient;
+
+    public Device(List<Double> delays, List<String> distributions) {
+        this.delaysAverage = delays;
+        this.distributions = distributions;
+        this.state = 0;
+    }
+
+    public double getDelayAverage(int index) {
+        double delay = delaysAverage.get(index);
+        String distribution = distributions.get(index);
+
+        switch (distribution.toLowerCase()) {
+            case "exp":
+                return FunRand.Exp(delay);
+            case "erl":
+                return FunRand.Erl(delay, this.delayDev);
+            case "unif":
+                return FunRand.Unif(delay, this.delayDev);
+            default:
+                return delay; 
+        }
+    }
+
+    public void inAct(Patient patient, int index) {
+        state = 1;
+        this.patient = patient;
+        this.tNext = tCurr + this.getDelayAverage(index);
+        
+    }
+
+    public Patient outAct() {
+        state = 0;
+        Patient result = this.patient;
+        this.patient = null;
+        return result;
+    }
+
+    public void setTNext(double tNext) {
+        this.tNext = tNext;
+    }
+    public double getTNext() {
+        return tNext;
+    }
+
+    public void setTcurr(double tCurr) {
+        this.tCurr = tCurr;
+    }
+
+    public int getState() {
+        return state;
+    }
+
+    public void setDelayDev(double delayDev) {
+        this.delayDev = delayDev;
+    }
+
+    public void setPatient(Patient patient){
+        this.patient = patient;
+    }
+    public Boolean isPatient() {
+        return this.patient != null;
+    }
+
+    public void addWaiting(int index) {
+        state = 1;
+        this.patient = null;
+        this.tNext = tCurr + this.getDelayAverage(index);
+    }
+
+    public int getDelayNumber() {
+        return delaysAverage.size();
+    }
+}
+
+
+--- Transfer.java ---
+import java.util.List;
+
+public class Transfer {
+    private List<Process> nextElements;
+
+    public Transfer(List<Process> nextElements){
+        this.nextElements = nextElements;
+    }
+    public String goNext(Process current, double tCurr, Patient patient){
+        int index = this.getIndex(current, tCurr, patient);
+        if(index >= 0){
+            Process nextElement = nextElements.get(index);
+            nextElement.inAct(patient);
+            return "free";
+        } else if (index == -1){
+            return "blocked";
+        } else {
+            return null;
+        }
+    }
+    public String goNext(Create current, double tCurr, Patient patient){
+        Time time = new Time(tCurr);
+        double hours = time.getHours();
+
+        if(hours >= 7 && hours <= 16){
+            Process nextElement = nextElements.get(0);
+            nextElement.inAct(patient);
+            return "free";
+        } else {
+            return "blocked";
+        }
+    }
+    public int getIndex(Process current, double tCurr, Patient patient) {
+
+        Time time = new Time(tCurr);
+        double hours = time.getHours();
+        int type = patient.getType();
+        int flag = patient.getFlag();
+        int index = 0;
+        int currentElement = 0;
+
+        for(Process element : nextElements ){
+            String[][] conditions = element.getConditions();
+            String[][] blockers = element.getBlockers();
+            String[][] changes = element.getChanges();
+
+            if(blockers.length != 0) {
+                for (String[] condition : blockers) {
+                    boolean flagCondition = true;
+                    boolean timeCondition = true;
+        
+                    for (int i = 0; i < condition.length; ) {
+                        String key = condition[i];
+                        
+                        if ("flag".equals(key)) {
+                            int conditionFlag = Integer.parseInt(condition[i + 1]);
+                            flagCondition = (flag == conditionFlag);
+                            i += 2;
+                        } else if ("time".equals(key)) {
+                            double start = Double.parseDouble(condition[i + 1]);
+                            double end = Double.parseDouble(condition[i + 2]);
+                            timeCondition = (hours >= start && hours <= end);
+                            i += 3;
+                        } else {
+                            i++; 
+                        }
+                    }
+                    if (flagCondition && timeCondition) {
+                        index = 0;
+                        break; 
+                    }
+                    return -1;
+                }
+            }
+
+            if(conditions.length != 0) {
+                
+                for (String[] condition : conditions) {
+                    boolean typeCondition = true;
+        
+                    for (int i = 0; i < condition.length; ) {
+                        String key = condition[i];
+                        
+                        if ("type".equals(key)) {
+                            int conditionFlag = Integer.parseInt(condition[i + 1]);
+                            typeCondition = (type == conditionFlag);
+                            i += 2;
+                        } else if ("!type".equals(key)) {
+                            int conditionFlag = Integer.parseInt(condition[i + 1]);
+                            typeCondition = (type != conditionFlag);
+                            i += 2;
+                        } else {
+                            i++; 
+                        }
+                    }
+                    if (typeCondition) {
+                        index = currentElement;
+                        break; 
+                    } 
+                    if(nextElements.size() == 1) {
+                        return -2;
+                    }
+                }
+            }
+        
+            if(changes.length != 0) {
+                for (String[] change : changes) {
+                    for (int i = 0; i < change.length; ) {
+                        String key = change[i];
+                        
+                        if ("type".equals(key)) {
+                            int changeValue = Integer.parseInt(change[i + 1]);
+                            patient.setType(changeValue);
+                            i += 2;
+                        } else if ("flag".equals(key)) {
+                            int changeValue = Integer.parseInt(change[i + 1]);
+                            patient.setFlag(changeValue);
+                            i += 2;
+                        } else {
+                            i++; 
+                        }
+                    }
+                }
+            }
+            
+            currentElement++;
+        }
+        return index;
+
+    }
+    public Process getNext(){
+        return nextElements.get(0);
+    } 
+
+    
+}
+
+
+--- QueueP.java ---
+import java.util.ArrayList;
+import java.util.List;
+
+public class QueueP {
+    private List<Patient> patients;
+    private int currentLength;
+    private String status = "empty";
+
+    public QueueP() {
+        currentLength=0;
+        patients = new ArrayList<>();
+    }
+
+    public String getStatus() {
+        currentLength = patients.size();
+        if(currentLength == 0) {
+            status = "empty";
+        } else {
+            status = "notEmpty";
+        }
+
+        return status;
+    }
+
+    public void add(Patient patient) {
+        patients.add(patient);
+        currentLength = patients.size();
+    }
+
+    public Patient remove() {
+        return patients.remove(0);
+    }
+    public int length(){
+        currentLength = patients.size();
+        return currentLength;
+    }
+}
+
+
+--- App.java ---
+import java.util.ArrayList;
+import java.util.Arrays;
+
+public class App {
+    public static void main(String[] args){
+
+        Create arrivalOfPatients = new Create("Arrival of patients", Arrays.asList(15.0),  Arrays.asList("exp"), 1);
+
+        Process reception = new Process("Reception", Arrays.asList(15.0, 40.0, 20.0),  Arrays.asList("", "", ""), 2);
+
+        Process transitionWard = new Process("Transition to the ward", Arrays.asList(3.0, 3.0),  Arrays.asList("unif", ""), 3);
+        transitionWard.setDelay(0, 8.0);
+
+        Process referralLaboratory = new Process("Referral to the laboratory", Arrays.asList(2.0),  Arrays.asList("unif"), 1);
+        referralLaboratory.setDelay(0, 5.0);
+
+        Process registrationLaboratory = new Process("Registration in the laboratory", Arrays.asList(4.5),  Arrays.asList("erl"), 1);
+        registrationLaboratory.setDelay(0, 3.0);
+
+        Process passingLaboratory = new Process("Passing tests in the laboratory", Arrays.asList(4.0),  Arrays.asList("erl"), 2);
+        passingLaboratory.setDelay(0, 2.0);
+
+        Process returningRecaption= new Process("Returning to reception", Arrays.asList(2.0),  Arrays.asList("unif"), 1);
+        passingLaboratory.setDelay(0, 5.0);
+
+        arrivalOfPatients.setTransfer(Arrays.asList(reception));
+
+        reception.setBlockers(new String[][]{{"flag", "1", "time", "7", "16"}, {"time", "7", "17"}});
+        reception.setTransfer(Arrays.asList(transitionWard, referralLaboratory));
+
+        transitionWard.setConditions(new String[][]{{"type", "1"}});
+
+        referralLaboratory.setConditions(new String[][]{{"!type", "1"}});
+        referralLaboratory.setTransfer(Arrays.asList(registrationLaboratory));
+
+        registrationLaboratory.setTransfer(Arrays.asList(passingLaboratory));
+
+        passingLaboratory.setTransfer(Arrays.asList(returningRecaption));
+
+        returningRecaption.setConditions(new String[][]{{"type", "2"}});
+        returningRecaption.setTransfer(Arrays.asList(reception));
+        returningRecaption.setChanges(new String[][]{{"type", "1"}, {"flag", "1"}});
+
+        ArrayList<Element> list = new ArrayList<>();
+        list.add(arrivalOfPatients);
+        list.add(reception);
+        list.add(transitionWard);
+        list.add(referralLaboratory);
+        list.add(registrationLaboratory);
+        list.add(passingLaboratory);
+        list.add(returningRecaption);
+
+        Model model = new Model(list);
+
+        model.simulate(1000000.0);
+    }
+}
+
+
+--- Model.java ---
+import java.util.ArrayList;
+
+public class Model {
+    private double tNext = 0;
+    private double tCurr = 0;
+    private ArrayList<Element> list = new ArrayList<>();
+
+    public Model(ArrayList<Element> elements) {
+        list = elements;
+    }
+
+    public void simulate(double time) {
+        while (this.tCurr < time) {
+            this.tNext = Double.MAX_VALUE;
+            for (Element e : list) {
+                if ((e.getTnext() < this.tNext)) {
+                    this.tNext = e.getTnext();
+                }
+            }
+            for (Element e : list) {
+                e.doStatistics(tNext - tCurr);
+            }
+            this.tCurr = this.tNext;
+            for (Element e : list) {
+                e.setTcurr(tCurr);
+            }
+            for (Element e : list) {
+                if (e.getTnext() == this.tCurr) {
+                    e.outAct();
+                }
+            }
+        }
+        printResult();
+    }
+
+    public void printResult() {
+        System.out.println("\n-------------RESULTS-------------");
+        for (Element e : list) {
+            e.printResult();
+        }
+    }
+}
+
+
+--- Patient.java ---
+public class Patient {
+    private int type;
+
+    private double arrivalTime;
+    private double exit;
+    private double duration;
+
+    private int isPassed;
+
+    public Patient(int type, double time) {
+        this.type = type;
+        arrivalTime = time;
+        duration = 0;
+        exit = 0;
+        isPassed = 0;
+    }
+
+    public void setType(int type) {
+        this.type = type;
+    }
+    public int getType() {
+        return type;
+    }
+    public double getDuration() {
+        return duration;
+    }
+    public void setExit(double exit) {
+        this.exit = exit;
+        this.duration+= exit - this.arrivalTime;
+    }
+    public void setArrival(double arrivalTime) {
+        this.arrivalTime = arrivalTime;
+    }
+
+    public String getPatient() {
+        String patiet = "Type: " + type + ", arrived at:" + arrivalTime + ", exit at:" + exit + ", duration: " + duration;
+        return patiet;
+    }
+
+    public int getFlag() {
+        return isPassed;
+    }
+    public void setFlag(int isPassed) {
+        this.isPassed = isPassed;
+    }
+}
+
+

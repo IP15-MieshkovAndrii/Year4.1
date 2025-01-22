@@ -1,0 +1,696 @@
+
+--- main.swift ---
+//
+//  main.swift
+//  lab3
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+let model = ModelFactory().makeModel(.shop)
+model.simulate(timeModeling: 1000)
+
+
+--- merged_files.txt ---
+
+
+--- Model/.DS_Store ---
+
+--- Model/Element/Process.swift ---
+//
+//  Process.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class Process: Element {
+    
+    var queue = Queue(maxLength: .max)
+    private(set) var failure = 0
+    private(set) var averageQueue = 0.0
+    private(set) var loadTime = 0.0
+    private(set) var workingDevicesCount = 0.0
+    private(set) var tasksInWorkCount = 0.0
+    
+    init(name: String, delays: [Double]) {
+        super.init(nameOfElement: name, delays: delays)
+    }
+    
+    override var canAccept: Bool {
+        queue.status != .full
+    }
+    
+    override var queueLength: Int {
+        queue.currentLength
+    }
+    
+    override var queueRelatedCount: Int {
+        return queue.relatedCount
+    }
+    
+    override func inAct(task: Task) {
+        switch state {
+        case .free:
+            devices.first(where: {$0.state == .free})?.inAct(task: task)
+        case .working:
+            do {
+                try queue.add(task)
+            } catch {
+                failure += 1
+            }
+        }
+    }
+    
+    override func outAct() {
+        super.outAct()
+        let outTasks = devices.filter({ $0.tNext == tCurr }).map({ $0.outAct() })
+        (0..<outTasks.count).forEach({ index in
+            do {
+                if queue.currentLength > 0 {
+                    let newTask = try queue.remove()
+                    devices.first(where: {$0.state == .free})?.inAct(task: newTask)
+                } else {
+                    devices.filter({ $0.state == .free }).forEach({ $0.tNext = .infinity })
+                }
+                transfer?.goNext(for: outTasks[index])
+            } catch {
+                print(error)
+            }
+        })
+    }
+    
+    override func printInfo() {
+        super.printInfo()
+        print("failure = \(failure)")
+    }
+    
+    override func doStatisctic(delta: Double) {
+        averageQueue += Double(queue.currentLength) * delta
+        if devices.filter({ $0.state == .working }).count > 0 {
+            loadTime += delta
+        }
+        workingDevicesCount += Double(devices.filter({ $0.state == .working }).count) * delta
+        tasksInWorkCount += Double(devices.filter({ $0.state == .working }).count + queueLength) * delta
+    }
+    
+}
+
+
+--- Model/Element/Element.swift ---
+//
+//  Element.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class Element {
+    
+    private static var nextID = 0
+    
+    let name: String
+    var distribution = Method.exp {
+        didSet {
+            devices.forEach({ $0.distribution = distribution })
+        }
+    }
+    private(set) var quantity = 0
+    var tCurr = 0.0 {
+        didSet {
+            devices.forEach({ $0.tCurr = tCurr })
+        }
+    }
+    var transfer: Transfer?
+    let id: Int
+    
+    var devices: [Device]
+    
+    init(nameOfElement: String, delays: [Double]) {
+        id = Element.nextID
+        Element.nextID += 1
+        name = nameOfElement
+        devices = []
+        delays.forEach({ devices.append(Device(delay: $0, distribution: distribution)) })
+    }
+    
+    var canAccept: Bool {
+        return true
+    }
+    
+    var queueLength: Int {
+        return 0
+    }
+    
+    var queueRelatedCount: Int {
+        return 0
+    }
+    
+    var tNext: Double {
+        devices.map({ $0.tNext }).min()!
+    }
+    
+    var state: State {
+        if devices.filter({ $0.state == .free }).count > 0 {
+            return .free
+        } else {
+            return .working
+        }
+    }
+    
+    func inAct(task: Task) {
+        
+    }
+    
+    func outAct() {
+        quantity += 1
+    }
+    
+    func printInfo() {
+        print("\(name) state = \(state.rawValue) quantity = \(quantity) tNext = \(tNext)")
+    }
+    
+    func doStatisctic(delta: Double) {
+        
+    }
+    
+    func setDelayDev(_ value: Double) {
+        devices.forEach({ $0.delayDev = value })
+    }
+    
+    func setErlangaValue(_ value: Int) {
+        devices.forEach({ $0.erlangaValue = value })
+    }
+    
+}
+
+enum Method {
+    case exp, norm, unif, erlanga
+}
+
+enum State: String {
+    case working, free
+}
+
+
+--- Model/Element/Create.swift ---
+//
+//  Create.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class Create: Element {
+    
+    init(name: String, delay: Double) {
+        super.init(nameOfElement: name, delays: [delay])
+        devices[0].tNext = 0
+    }
+    
+    override func outAct() {
+        super.outAct()
+        let newTask = devices[0].outAct()
+        devices[0].tNext += devices[0].delay
+        transfer?.goNext(for: newTask)
+    }
+    
+}
+
+
+--- Model/Transfer/SoloTransfer.swift ---
+//
+//  SoloTransfer.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class SoloTransfer: Transfer {
+    
+    let elements: [Element]
+    
+    init(elements: [Element]) {
+        self.elements = elements
+    }
+    func goNext(for task: Task) {
+         let freeElements = elements.filter { $0.element.state == .free }
+         if let highestPriorityFreeElement = freeElements.max(by: { $0.priority.value < $1.priority.value }) {
+             freeElements
+                 .filter { $0.priority.value == highestPriorityFreeElement.priority.value }
+                 .randomElement()?.element.inAct(task: task)
+             return
+         }
+
+         let smallestQueueLength = elements
+             .compactMap { $0.element.canAccept ? $0.element.queueLength : nil }
+             .min()
+
+         let elementsWithSmallestQueue = elements.filter {
+             $0.element.queueLength == smallestQueueLength && $0.element.canAccept
+         }
+         if let highestPriorityElementWithSmallQueue = elementsWithSmallestQueue.max(by: { $0.priority.value < $1.priority.value }) {
+             elementsWithSmallestQueue
+                 .filter { $0.priority.value == highestPriorityElementWithSmallQueue.priority.value }
+                 .randomElement()?.element.inAct(task: task)
+             return
+         }
+
+         elements.max(by: { $0.priority.value < $1.priority.value })?.element.inAct(task: task)
+     }
+    
+}
+
+
+--- Model/Transfer/Transfer.swift ---
+//
+//  Transfer.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+protocol Transfer {
+    func goNext(for task: Task)
+}
+
+
+--- Model/Calc/FunRand.swift ---
+//
+//  FunRand.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class FunRand {
+    
+    private class var generateA: Double {
+        var a = Double.random(in: 0..<1)
+        while a == 0 {
+            a = Double.random(in: 0..<1)
+        }
+        return a
+    }
+    
+    class func exp(timeaverage: Double) -> Double {
+        var a = generateA
+        a = -timeaverage * log(a)
+        return a
+    }
+    
+    class func unif(timeMin: Double, timeMax: Double) -> Double {
+        var a = generateA
+        a = timeMin + a * (timeMax - timeMin)
+        return a
+    }
+    
+    class func norm(timeaverage: Double, timeDeviation: Double) -> Double {
+        timeaverage + timeDeviation * Double.random(in: -1...1)
+    }
+    
+    class func erlanga(timeaverage: Double, k: Int) -> Double {
+        (0..<k).reduce(0.0, { prevValue, _ in
+            prevValue + exp(timeaverage: timeaverage)
+        })
+    }
+    
+}
+
+
+--- Model/Task/Task.swift ---
+//
+//  Task.swift
+//  lab3
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class Task {
+    
+    let id = UUID()
+    var typeId: Int
+    
+    init(typeId: Int = 1) {
+        self.typeId = typeId
+    }
+    
+}
+
+
+--- Model/Model/Model.swift ---
+//
+//  Model.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class Model {
+    
+    private var tNext = 0.0
+    private(set) var tCurr = 0.0
+    private var event = 0
+    private let elements: [Element]
+    
+    private(set) var tasksInModel = 0.0
+    
+    private let resultsPrinter: ResultsPrinter
+    
+    init(elements: [Element], resultsPrinter: ResultsPrinter) {
+        self.resultsPrinter = resultsPrinter
+        self.elements = elements
+    }
+    
+    var tasksCompleted: Int {
+        return elements.filter({ $0 is Create }).reduce(0, { $0 + $1.quantity })
+    }
+    
+    var processCount: Int {
+        return elements.filter({ $0 is Process }).count
+    }
+    
+    var failureProbability: Double {
+        let failures = elements.filter({ $0 is Process }).reduce(0, { $0 + ($1 as! Process).failure })
+        let createdElements = elements.filter({ $0 is Create }).reduce(0, { $0 + $1.quantity })
+        return Double(failures) / Double(createdElements)
+    }
+    
+    var relatedCount: Int {
+        return elements.reduce(0, { $0 + $1.queueRelatedCount })
+    }
+    
+    func simulate(timeModeling: Double) {
+        while tCurr < timeModeling {
+            tNext = Double.infinity
+            elements.forEach { element in
+                if element.tNext < tNext {
+                    tNext = element.tNext
+                }
+            }
+            elements.forEach({ $0.doStatisctic(delta: tNext - tCurr) })
+            doStatistic()
+            tCurr = tNext
+            elements.forEach({ $0.tCurr = tCurr })
+            elements.forEach { element in
+                if element.tNext == tCurr {
+                    element.outAct()
+                    print("It's time for event in \(element.name) time = \(tCurr)")
+                }
+            }
+            elements.forEach({ $0.printInfo() })
+        }
+        printResult()
+    }
+    
+    private func doStatistic() {
+        calculateTasksInModel()
+    }
+    
+    private func calculateTasksInModel() {
+        var tasks = elements.reduce(0, { $0 + $1.queueLength })
+        elements.forEach { element in
+            tasks += element.devices.filter({ $0.state == .working }).count
+        }
+        tasksInModel += Double(tasks) * (tNext - tCurr)
+    }
+    
+    private func printResult() {
+        print("\n-------------RESULTS-------------\n")
+        print("")
+        elements.forEach { element in
+            if let process = element as? Process {
+                resultsPrinter.printProcessResults(process)
+            }
+            print("")
+        }
+    }
+    
+}
+
+
+--- Model/Queue/Queue.swift ---
+//
+//  Queue.swift
+//  lab3
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class Queue {
+    
+    var tasks = [Task]()
+    let maxLength: Int
+    private var totalTimeSpent = 0.0
+    private var totalTasksProcessed = 0
+    var relatedCount = 0
+    
+    init(maxLength: Int) {
+        self.maxLength = maxLength
+    }
+    
+    var currentLength: Int {
+        tasks.count
+    }
+    
+    var status: QueueStatus {
+        if currentLength == 0 {
+            return .empty
+        }
+        if currentLength < maxLength {
+            return .withTasks
+        }
+        return .full
+    }
+    
+    func add(_ task: Task) throws {
+        guard currentLength < maxLength else {
+            throw QueueError.queueFill
+        }
+        tasks.append(task)
+    }
+    
+    var averageTimeInQueue: Double {
+        guard totalTasksProcessed > 0 else { return 0.0 }
+        return totalTimeSpent / Double(totalTasksProcessed)
+    }
+    
+    @discardableResult
+    func remove() throws -> Task {
+        guard currentLength > 0 else {
+            throw QueueError.queryEmpty
+        }
+        return tasks.remove(at: 0)
+    }
+    
+}
+
+enum QueueError: Error {
+    case queueFill, queryEmpty
+}
+
+enum QueueStatus {
+    case full, empty, withTasks
+}
+
+
+--- Model/Device/Device.swift ---
+//
+//  Device.swift
+//  lab2
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class Device {
+    
+    var tNext = 0.0
+    private let delayaverage: Double
+    var tCurr = 0.0
+    var state = State.free
+    var currentTask: Task?
+    var distribution: Method
+    var delayDev = 0.0
+    var erlangaValue = 0
+    
+    var delay: Double {
+        var delay = delayaverage
+        switch distribution {
+        case .exp:
+            delay = FunRand.exp(timeaverage: delayaverage)
+        case .norm:
+            delay = FunRand.norm(timeaverage: delayaverage, timeDeviation: delayDev)
+        case .unif:
+            delay = FunRand.unif(timeMin: delayaverage, timeMax: delayDev)
+        case .erlanga:
+            delay = FunRand.erlanga(timeaverage: delayaverage, k: erlangaValue)
+        }
+        return delay
+    }
+
+    init(delay: Double, distribution: Method) {
+        self.delayaverage = delay
+        self.distribution = distribution
+    }
+    
+    func inAct(task: Task) {
+        state = .working
+        tNext = tCurr + delay
+        currentTask = task
+    }
+    
+    func outAct() -> Task {
+        state = .free
+        if let result = currentTask {
+            currentTask = nil
+            return result
+        } else {
+            return Task()
+        }
+    }
+    
+}
+
+
+--- Model/ResultsPrinter/ResultsOption.swift ---
+//
+//  ResultsOption.swift
+//  lab3
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+enum ProcessResultsOption {
+    case averageTimeInQueue
+}
+
+
+--- Model/ResultsPrinter/ResultsPrinter.swift ---
+
+
+import Foundation
+
+class ResultsPrinter {
+    
+    private let processResultsConfig: [ProcessResultsOption]
+    
+    init(processResultsConfig: [ProcessResultsOption]) {
+        self.processResultsConfig = processResultsConfig
+    }
+
+    func printProcessResults(_ process: Process) {
+        print("[Result of work \(process.name)]")
+        processResultsConfig.forEach({ printProcessResult(process, option: $0) })
+    }
+    
+    private func printProcessResult(_ process: Process, option: ProcessResultsOption) {
+        switch option {
+        case .averageTimeInQueue:
+            print("average time in queue = \(process.queue.averageTimeInQueue)")
+        }
+    }
+    
+}
+
+
+--- Model/Factory/ModelFactory.swift ---
+//
+//  ModelFactory.swift
+//  lab3
+//
+//  Created by Andrey Meshkov on 01.01.2025.
+//
+
+import Foundation
+
+class ModelFactory {
+    
+    private let standartResultsPrinter = ResultsPrinter(
+        processResultsConfig: [.quantity, .averageQueueLength, .failureProbability, .averageLoadDevice, .averageWorkingDevice, .averageTasksInWork], 
+        createResultsConfig: [.quantity],
+        modelResultsConfig: []
+    )
+    
+    func makeModel(_ type: ModelType) -> Model {
+        switch type {
+        case .shop:
+            shop()
+        }
+    }
+    
+    
+    private func shop() -> Model {
+        
+        let create = Create(name: "create", delay: 1)
+        let register1 = Process(name: "register1", delays: [9])
+        let register2 = Process(name: "register2", delays: [9])
+        let register3 = Process(name: "register3", delays: [9])
+        let register4 = Process(name: "register4", delays: [9])
+        let register5 = Process(name: "register5", delays: [9])
+        let register6 = Process(name: "register6", delays: [9])
+        let register7 = Process(name: "register7", delays: [9])
+        let register8 = Process(name: "register8", delays: [9])
+        let register9 = Process(name: "register9", delays: [9])
+        let register10 = Process(name: "register10", delays: [9])
+        
+        
+        register1.queue = Queue(maxLength: .max)
+        register2.queue = Queue(maxLength: .max)
+        register3.queue = Queue(maxLength: .max)
+        register4.queue = Queue(maxLength: .max)
+        register5.queue = Queue(maxLength: .max)
+        register6.queue = Queue(maxLength: .max)
+        register7.queue = Queue(maxLength: .max)
+        register8.queue = Queue(maxLength: .max)
+        register9.queue = Queue(maxLength: .max)
+        register10.queue = Queue(maxLength: .max)
+        
+        register1.distribution = .exp
+        register2.distribution = .exp
+        register3.distribution = .exp
+        register4.distribution = .exp
+        register5.distribution = .exp
+        register6.distribution = .exp
+        register7.distribution = .exp
+        register8.distribution = .exp
+        register9.distribution = .exp
+        register10.distribution = .exp
+        
+        create.transfer = SoloTransfer(nextElement: [ register1, register2, register3, register4, register5, register6, register7, register8, register9, register10])
+        
+
+        
+        return Model(elements: [create, register1, register2, register3, register4, register5, register6, register7, register8, register9, register10], resultsPrinter: standartResultsPrinter)
+        
+    }
+    
+}
+
+enum ModelType {
+    case shop
+}
+

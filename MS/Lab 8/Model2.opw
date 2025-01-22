@@ -1,0 +1,43 @@
+[RESOURCES]
+Resource 5
+Resource 4
+Resource 3
+Resource 2
+Resource 1
+[VARIABLES]
+Process 5.NumberOut
+Decide 1.NumberOut False
+Decide 2.NumberOut False
+Decide 3.NumberOut False
+Decide 4.NumberOut False
+Decide 5.NumberOut False
+Process 4.NumberOut
+Dispose 6.NumberOut
+Process 2.NumberOut
+Process 2.NumberIn
+Process 10.NumberOut
+Process 3.NumberIn
+Process 6.NumberIn
+Process 1.NumberIn
+Process 8.NumberIn
+Process 9.NumberIn
+Process 7.NumberOut
+Create 1.NumberOut
+Process 6.NumberOut
+Dispose 1.NumberOut
+Dispose 4.NumberOut
+Dispose 5.NumberOut
+Process 7.NumberIn
+Process 5.NumberIn
+Process 4.NumberIn
+Process 8.NumberOut
+Process 3.NumberOut
+Dispose 3.NumberOut
+Process 9.NumberOut
+Process 10.NumberIn
+Process 1.NumberOut
+Decide 1.NumberOut True
+Decide 2.NumberOut True
+Decide 3.NumberOut True
+Decide 4.NumberOut True
+Decide 5.NumberOut True
